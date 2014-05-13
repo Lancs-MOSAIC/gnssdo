@@ -242,13 +242,10 @@ int main(void)
 
 
 	int32_t gnss_pps_cap, tcxo_pps_cap;
-	int32_t phase_err;
+	int32_t phase_err, prev_phase_err;
 	double phase_err_int = 0;
-	//double I_factor = 3.7e-8;
-	//double I_factor = 7.4e-9;
 	double I_factor = 1.5e-9;
 	double P_factor = 2e-6;
-	//double P_factor = 0;
 
 	// wait for GNSS PPS and start timer
 
@@ -273,6 +270,9 @@ int main(void)
 
 	printf("Timer started\n");
 
+	int fast_lock = 1, phase_err_init = 0;
+	uint16_t pwm_ctrl;
+
 	for (;;) {
 		// test for PPS events
 		uint16_t ecap0_ecflg = RD_REG16((char *)ecap0_addr + ECAP_ECFLG);
@@ -290,15 +290,31 @@ int main(void)
 
 			phase_err = tcxo_pps_cap - gnss_pps_cap;
 
-			phase_err_int += (double)phase_err;
+			if (fast_lock) {
+				if (phase_err_init != 0) {
+					// test if phase error has gone through zero
+					if (((double)phase_err * (double)prev_phase_err) < 0) {
+						printf("Switching to PLL\n");
+						fast_lock = 0;
+						pwm_ctrl = 32768;
+					} else
+						pwm_ctrl = (phase_err > 0) ? 65535 : 0;
+				}
+				prev_phase_err = phase_err;
+				phase_err_init = 1;
+				
+			} else {
+				phase_err_int += (double)phase_err;
 
-			double pwm_duty_cycle = 32768.0 + ((double)phase_err * P_factor + phase_err_int * I_factor) * 32767;
-			if (pwm_duty_cycle > 65535)
-				pwm_duty_cycle = 65535;
-			if (pwm_duty_cycle < 0)
-				pwm_duty_cycle = 0;
-
-			uint16_t pwm_ctrl = (uint16_t)pwm_duty_cycle;
+				double pwm_duty_cycle = 32768.0 + 
+					((double)phase_err * P_factor + phase_err_int * I_factor) * 32767;
+				if (pwm_duty_cycle > 65535)
+					pwm_duty_cycle = 65535;
+				if (pwm_duty_cycle < 0)
+					pwm_duty_cycle = 0;
+	
+				pwm_ctrl = (uint16_t)pwm_duty_cycle;
+			}
 
 			printf("%d %.6g %u\n", phase_err, phase_err_int, pwm_ctrl);
 			fflush(stdout);
