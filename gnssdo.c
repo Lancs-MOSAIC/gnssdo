@@ -166,7 +166,7 @@ int main(void)
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TLDR;
 	WR_REG32(reg_addr, timer_load_count);
 
-	// timer will be started later...
+	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCLR, 0x0403); // enable auto-reload timer
 
 	// read count
 	reg_addr = (char *)dmtimer4_addr + 0x3C;
@@ -240,8 +240,117 @@ int main(void)
 	reg_addr = (char *)ecap2_addr + ECAP_ECCLR;
 	WR_REG16(reg_addr, 0x00FF);
 
+	// --- Calibrate VCXO tuning range ---
 
-	int32_t gnss_pps_cap, tcxo_pps_cap;
+	printf("Calibrating VCXO tuning range...\n");
+
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0xFFFF); // max. control voltage
+	sleep(1); // wait for RC delay	
+
+	// reset capture flags
+	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+	WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+
+	int32_t gnss_pps_cap, tcxo_pps_cap, prev_gnss_pps_cap, prev_tcxo_pps_cap;
+	int gnss_count = 0, tcxo_count = 0;
+	double gnss_period = 0, tcxo_period = 0;
+	const int cal_pps_count = 5;
+
+	while ((gnss_count <= cal_pps_count) || (tcxo_count <= cal_pps_count)) {
+		// test for PPS events
+		uint16_t ecap0_ecflg = RD_REG16((char *)ecap0_addr + ECAP_ECFLG);
+		uint16_t ecap2_ecflg = RD_REG16((char *)ecap2_addr + ECAP_ECFLG);
+
+		if (ecap0_ecflg & 0x0002) {
+			// get captured count and clear flag
+			gnss_pps_cap = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_CAP1);
+			WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+
+			if (gnss_count > 0)
+				gnss_period += (double)(gnss_pps_cap - prev_gnss_pps_cap);
+
+			prev_gnss_pps_cap = gnss_pps_cap;
+			gnss_count++;
+		}
+
+		if (ecap2_ecflg & 0x0002) {
+			// get captured count and clear flag
+			tcxo_pps_cap = (int32_t)RD_REG32((char *)ecap2_addr + ECAP_CAP1);
+			WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+
+			if (tcxo_count > 0)
+				tcxo_period += (double)(tcxo_pps_cap - prev_tcxo_pps_cap);
+
+			prev_tcxo_pps_cap = tcxo_pps_cap;
+			tcxo_count++;
+		}		
+
+
+	}
+
+	double tcxo_max_freq = (double)gnss_period / (double)tcxo_period;
+
+	printf("TCXO max freq = %.7f\n", tcxo_max_freq);
+
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x0000); // min. control voltage
+	sleep(1); // wait for RC delay	
+
+	// reset capture flags
+	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+	WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+
+
+	gnss_count = 0;
+	tcxo_count = 0;
+	gnss_period = 0;
+	tcxo_period = 0;
+
+	while ((gnss_count <= cal_pps_count) || (tcxo_count <= cal_pps_count)) {
+		// test for PPS events
+		uint16_t ecap0_ecflg = RD_REG16((char *)ecap0_addr + ECAP_ECFLG);
+		uint16_t ecap2_ecflg = RD_REG16((char *)ecap2_addr + ECAP_ECFLG);
+
+		if (ecap0_ecflg & 0x0002) {
+			// get captured count and clear flag
+			gnss_pps_cap = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_CAP1);
+			WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+
+			if (gnss_count > 0)
+				gnss_period += (double)(gnss_pps_cap - prev_gnss_pps_cap);
+
+			prev_gnss_pps_cap = gnss_pps_cap;
+			gnss_count++;
+		}
+
+		if (ecap2_ecflg & 0x0002) {
+			// get captured count and clear flag
+			tcxo_pps_cap = (int32_t)RD_REG32((char *)ecap2_addr + ECAP_CAP1);
+			WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+
+			if (tcxo_count > 0)
+				tcxo_period += (double)(tcxo_pps_cap - prev_tcxo_pps_cap);
+
+			prev_tcxo_pps_cap = tcxo_pps_cap;
+			tcxo_count++;
+		}		
+
+
+	}
+
+	double tcxo_min_freq = (double)gnss_period / (double)tcxo_period;
+
+	printf("TCXO min freq = %.7f\n", tcxo_min_freq);
+
+	double est_duty_cycle = (1 - tcxo_min_freq) / (tcxo_max_freq - tcxo_min_freq);
+	if ((est_duty_cycle < 0) || (est_duty_cycle > 1)) {
+		printf("Duty cycle for correct tuning is out of range!\n");
+		est_duty_cycle = 0.5;
+	}
+
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x8000); // centre control voltage
+
+	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCLR, 0x0); // stop timer
+
 	int32_t phase_err, prev_phase_err;
 	double phase_err_int = 0;
 	double I_factor = 1.5e-9;
@@ -258,13 +367,14 @@ int main(void)
 	gnss_pps_cap = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_CAP1);
 	int32_t gnss_pps_cnt = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_TSCTR);
 	int32_t cnt_elapsed = gnss_pps_cnt - gnss_pps_cap;
-	printf("Elapsed since GNSS PPS = %d\n", cnt_elapsed);
 
 	// correct start time of counter
 	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCRR, timer_load_count + cnt_elapsed / 10);	
 
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TCLR;
 	WR_REG32(reg_addr, 0x0403); // enable auto-reload timer
+
+	printf("Elapsed since GNSS PPS = %d\n", cnt_elapsed);
 
 	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear interrupt flag
 
@@ -296,7 +406,8 @@ int main(void)
 					if (((double)phase_err * (double)prev_phase_err) < 0) {
 						printf("Switching to PLL\n");
 						fast_lock = 0;
-						pwm_ctrl = 32768;
+						pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
+						phase_err_int = 2 * (est_duty_cycle - 0.5) / I_factor;
 					} else
 						pwm_ctrl = (phase_err > 0) ? 65535 : 0;
 				}
