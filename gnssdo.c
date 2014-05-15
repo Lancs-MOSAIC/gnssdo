@@ -427,7 +427,8 @@ int main(void)
 				pwm_ctrl = (uint16_t)pwm_duty_cycle;
 			}
 
-			printf("%d %.6g %u\n", phase_err, phase_err_int, pwm_ctrl);
+			time_t time_now = time(NULL);
+			printf("%d %d %.6g %u\n", time_now, phase_err, phase_err_int, pwm_ctrl);
 			fflush(stdout);
 
 			reg_addr = (char *)epwm1_addr + EPWM_CMPA;
