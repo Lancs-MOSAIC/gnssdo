@@ -102,22 +102,22 @@ int main(void)
 	// --- Enable module clocks ---
 
 	void *reg_addr = (char *)cm_per_addr + CM_PER_TIMER4_CLKCTRL;
-	printf("CM_PER_TIMER4_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CM_PER_TIMER4_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x00000002);
 
 
 	reg_addr = (char *)cm_per_addr + CM_PER_EPWMSS0_CLKCTRL;
-	printf("CM_PER_EPWMSS0_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CM_PER_EPWMSS0_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x00000002);
 
 	reg_addr = (char *)cm_per_addr + CM_PER_EPWMSS1_CLKCTRL;
-	printf("CM_PER_EPWMSS1_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CM_PER_EPWMSS1_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x00000002);
 	//*((uint32_t *)reg_addr) = 0x00030000; // disable
 
 
 	reg_addr = (char *)cm_per_addr + CM_PER_EPWMSS2_CLKCTRL;
-	printf("CM_PER_EPWMSS2_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CM_PER_EPWMSS2_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x00000002);
 
 
@@ -130,7 +130,7 @@ int main(void)
 	}
 
 	reg_addr = (char *)cm_dpll_addr + CLKSEL_TIMER4_CLK;
-	printf("CLKSEL_TIMER4_CLK = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CLKSEL_TIMER4_CLK = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x0); // Use TCLKIN as clock
 
 	// --- what is going on here? ---
@@ -142,7 +142,7 @@ int main(void)
 	}
 
 	reg_addr = (char *)ctrlmod_addr + CTRLMOD_PWMSS_CTRL;
-	printf("CTRLMOD_PWMSS_CTRL = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%CTRLMOD_PWMSS_CTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	//*((uint32_t *)reg_addr) = 0x2; // enable PWM1 time base clock
 
 	// --- Configure DMTIMER4 to divide 10 MHz to 1 Hz ---
@@ -170,7 +170,7 @@ int main(void)
 
 	// read count
 	reg_addr = (char *)dmtimer4_addr + 0x3C;
-	printf("register = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%register = 0x%08X\n", RD_REG32(reg_addr));	
 
 	// --- Configure PWM1 to drive TCXO control voltage ---
 
@@ -181,19 +181,19 @@ int main(void)
 	}
 
 	reg_addr = (char *)epwm1_addr + EPWM_TBPRD;
-	printf("ePWM1 TBPRD = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%ePWM1 TBPRD = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0xFFFF); // max period
 
 	reg_addr = (char *)epwm1_addr + EPWM_CMPA;
-	printf("ePWM1 CMPA = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%ePWM1 CMPA = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x8000); // duty cycle
 
 	reg_addr = (char *)epwm1_addr + EPWM_AQCTLA;
-	printf("ePWM1 AQCTLA = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%ePWM1 AQCTLA = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0012); // high on zero, low on CMPA
 
 	reg_addr = (char *)epwm1_addr + EPWM_TBCTL;
-	printf("ePWM1 TBCTL = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%ePWM1 TBCTL = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0000); // count up
 
 	// --- Configure eCAP0,2 to capture GNSS,TCXO PPS events ---
@@ -211,28 +211,28 @@ int main(void)
 	}
 
 	reg_addr = (char *)ecap2_addr + ECAP_ECCTL2;
-	printf("eCAP2 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%eCAP2 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0030); // start counter, enable SYNCIN
 
 	reg_addr = (char *)ecap0_addr + ECAP_ECCTL1;
-	printf("eCAP0 ECCTL1 = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%eCAP0 ECCTL1 = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0100); // enable CAP loading
 
 	reg_addr = (char *)ecap2_addr + ECAP_ECCTL1;
-	printf("eCAP2 ECCTL1 = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%eCAP2 ECCTL1 = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0100); // enable CAP loading
 
 	reg_addr = (char *)ecap0_addr + ECAP_ECCTL2;
-	printf("eCAP0 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
+	printf("%%eCAP0 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0130); // start counter, SWSYNC
 
 	// read count
 	reg_addr = (char *)ecap2_addr + ECAP_TSCTR;
-	printf("eCAP2 TSCTR = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%eCAP2 TSCTR = 0x%08X\n", RD_REG32(reg_addr));	
 
 	// read count
 	reg_addr = (char *)ecap0_addr + ECAP_TSCTR;
-	printf("eCAP0 TSCTR = 0x%08X\n", RD_REG32(reg_addr));	
+	printf("%%eCAP0 TSCTR = 0x%08X\n", RD_REG32(reg_addr));	
 
 	// clear interrupt flags
 	reg_addr = (char *)ecap0_addr + ECAP_ECCLR;
@@ -242,7 +242,7 @@ int main(void)
 
 	// --- Calibrate VCXO tuning range ---
 
-	printf("Calibrating VCXO tuning range...\n");
+	printf("%%Calibrating VCXO tuning range...\n");
 
 	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0xFFFF); // max. control voltage
 	sleep(1); // wait for RC delay	
@@ -290,7 +290,7 @@ int main(void)
 
 	double tcxo_max_freq = (double)gnss_period / (double)tcxo_period;
 
-	printf("TCXO max freq = %.7f\n", tcxo_max_freq);
+	printf("%%TCXO max freq = %.7f\n", tcxo_max_freq);
 
 	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x0000); // min. control voltage
 	sleep(1); // wait for RC delay	
@@ -339,11 +339,11 @@ int main(void)
 
 	double tcxo_min_freq = (double)gnss_period / (double)tcxo_period;
 
-	printf("TCXO min freq = %.7f\n", tcxo_min_freq);
+	printf("%%TCXO min freq = %.7f\n", tcxo_min_freq);
 
 	double est_duty_cycle = (1 - tcxo_min_freq) / (tcxo_max_freq - tcxo_min_freq);
 	if ((est_duty_cycle < 0) || (est_duty_cycle > 1)) {
-		printf("Duty cycle for correct tuning is out of range!\n");
+		printf("%%Duty cycle for correct tuning is out of range!\n");
 		est_duty_cycle = 0.5;
 	}
 
@@ -358,7 +358,7 @@ int main(void)
 
 	// wait for GNSS PPS and start timer
 
-	printf("Waiting for GNSS PPS...\n");
+	printf("%%Waiting for GNSS PPS...\n");
 	ts.tv_sec = 0;
 	ts.tv_nsec = 10000000;
 	while (!(RD_REG16((char *)ecap0_addr + ECAP_ECFLG) & 0x0002))
@@ -374,11 +374,11 @@ int main(void)
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TCLR;
 	WR_REG32(reg_addr, 0x0403); // enable auto-reload timer
 
-	printf("Elapsed since GNSS PPS = %d\n", cnt_elapsed);
+	printf("%%Elapsed since GNSS PPS = %d\n", cnt_elapsed);
 
 	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear interrupt flag
 
-	printf("Timer started\n");
+	printf("%%Timer started\n");
 
 	int fast_lock = 1, phase_err_init = 0;
 	uint16_t pwm_ctrl;
@@ -404,7 +404,7 @@ int main(void)
 				if (phase_err_init != 0) {
 					// test if phase error has gone through zero
 					if (((double)phase_err * (double)prev_phase_err) < 0) {
-						printf("Switching to PLL\n");
+						printf("%%Switching to PLL\n");
 						fast_lock = 0;
 						pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 						phase_err_int = 2 * (est_duty_cycle - 0.5) / I_factor;
