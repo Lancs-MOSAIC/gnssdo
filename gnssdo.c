@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>
+#include <math.h>
 
 // register address
 static const size_t ECAP0_BASE_ADDRESS = 0x48300100;
@@ -37,6 +38,8 @@ static const size_t EPWM_TBCTL = 0x00;
 static const size_t EPWM_TBPRD = 0xA;
 static const size_t EPWM_CMPA = 0x12;
 static const size_t EPWM_AQCTLA = 0x16;
+static const size_t EPWM_HRCNTL = 0x40;
+static const size_t EPWM_CMPAHR = 0x10;
 static const size_t CTRLMOD_PWMSS_CTRL = 0x664;
 
 // block size
@@ -49,6 +52,7 @@ static const size_t EPWM_MEM_SIZE = 0x60;
 static const size_t CTRLMOD_MEM_SIZE = 0x800;
 
 static const uint32_t TIMER_CLOCK_FREQ = 10000000;
+static const int32_t MEP_SF = 55; // PWM MEP scale factor
 
 void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 {
@@ -191,6 +195,12 @@ int main(void)
 	reg_addr = (char *)epwm1_addr + EPWM_AQCTLA;
 	printf("%%ePWM1 AQCTLA = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0012); // high on zero, low on CMPA
+
+	reg_addr = (char *)epwm1_addr + EPWM_HRCNTL;
+	printf("%%ePWM1 HRCNTL = 0x%04X\n", RD_REG16(reg_addr));
+	WR_REG16(reg_addr, 0x0002); // HRPWM configuration
+
+	WR_REG16((char *)epwm1_addr + EPWM_CMPAHR, 0x0000); // disable HR for now
 
 	reg_addr = (char *)epwm1_addr + EPWM_TBCTL;
 	printf("%%ePWM1 TBCTL = 0x%04X\n", RD_REG16(reg_addr));	
@@ -381,7 +391,7 @@ int main(void)
 	printf("%%Timer started\n");
 
 	int fast_lock = 1, phase_err_init = 0;
-	uint16_t pwm_ctrl;
+	uint16_t pwm_ctrl, pwm_ctrl_hr = 0;
 
 	for (;;) {
 		// test for PPS events
@@ -417,22 +427,26 @@ int main(void)
 			} else {
 				phase_err_int += (double)phase_err;
 
-				double pwm_duty_cycle = 32768.0 + 
-					((double)phase_err * P_factor + phase_err_int * I_factor) * 32767;
-				if (pwm_duty_cycle > 65535)
-					pwm_duty_cycle = 65535;
+				double pwm_duty_cycle = 0.5 +
+					0.5 * ((double)phase_err * P_factor + phase_err_int * I_factor);
+				if (pwm_duty_cycle > 1)
+					pwm_duty_cycle = 1;
 				if (pwm_duty_cycle < 0)
 					pwm_duty_cycle = 0;
 	
-				pwm_ctrl = (uint16_t)pwm_duty_cycle;
+				pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
+				pwm_ctrl_hr = (uint16_t)((int32_t)(fmod(pwm_duty_cycle * 65536.0, 1.0) * MEP_SF) << 8);
+				pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
 			}
 
 			time_t time_now = time(NULL);
-			printf("%d %d %.6g %u\n", time_now, phase_err, phase_err_int, pwm_ctrl);
+			printf("%d %d %.6g %u %u\n", time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr);
 			fflush(stdout);
 
 			reg_addr = (char *)epwm1_addr + EPWM_CMPA;
 			WR_REG16(reg_addr, pwm_ctrl); // duty cycle
+			WR_REG16((char *)epwm1_addr + EPWM_CMPAHR, pwm_ctrl_hr);
+	
 
 		}
 				
