@@ -440,7 +440,7 @@ int main(void)
 			}
 
 			time_t time_now = time(NULL);
-			printf("%d %d %.6g %u %u\n", time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr);
+			printf("%d %d %.6g %u %u %d %d\n", time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr, gnss_pps_cap, tcxo_pps_cap);
 			fflush(stdout);
 
 			reg_addr = (char *)epwm1_addr + EPWM_CMPA;
