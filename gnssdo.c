@@ -38,7 +38,8 @@ static const size_t EPWM_TBCTL = 0x00;
 static const size_t EPWM_TBPRD = 0xA;
 static const size_t EPWM_CMPA = 0x12;
 static const size_t EPWM_AQCTLA = 0x16;
-static const size_t EPWM_HRCNTL = 0x40;
+//static const size_t EPWM_HRCNTL = 0x40;
+static const size_t EPWM_HRCNTL = 0xC0; // called HRCNFG now!
 static const size_t EPWM_CMPAHR = 0x10;
 static const size_t CTRLMOD_PWMSS_CTRL = 0x664;
 
