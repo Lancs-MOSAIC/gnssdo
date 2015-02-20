@@ -39,7 +39,7 @@ static const size_t EPWM_TBPRD = 0xA;
 static const size_t EPWM_CMPA = 0x12;
 static const size_t EPWM_AQCTLA = 0x16;
 //static const size_t EPWM_HRCNTL = 0x40;
-static const size_t EPWM_HRCNTL = 0xC0; // called HRCNFG now!
+static const size_t EPWM_HRCNFG = 0xC0;
 static const size_t EPWM_CMPAHR = 0x10;
 static const size_t CTRLMOD_PWMSS_CTRL = 0x664;
 
@@ -53,7 +53,10 @@ static const size_t EPWM_MEM_SIZE = 0x60;
 static const size_t CTRLMOD_MEM_SIZE = 0x800;
 
 static const uint32_t TIMER_CLOCK_FREQ = 10000000;
-static const int32_t MEP_SF = 55; // PWM MEP scale factor
+// PWM MEP scale factor
+// This is empirically determined, since TI docs (SPRUH73K)
+// are clearly wrong.
+static const int32_t MEP_SF = 121; 
 
 void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 {
@@ -197,9 +200,13 @@ int main(void)
 	printf("%%ePWM1 AQCTLA = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0012); // high on zero, low on CMPA
 
-	reg_addr = (char *)epwm1_addr + EPWM_HRCNTL;
-	printf("%%ePWM1 HRCNTL = 0x%04X\n", RD_REG16(reg_addr));
-	WR_REG16(reg_addr, 0x0002); // HRPWM configuration
+	reg_addr = (char *)epwm1_addr + EPWM_HRCNFG;
+	printf("%%ePWM1 HRCNFG = 0x%04X\n", RD_REG16(reg_addr));
+	// HRPWM configuration
+	// Insert delay in falling edge
+	// TI docs (SPRUH73K) are a bit confusing about the "HRLOAD"
+	// bit in this register.
+	WR_REG16(reg_addr, 0x000A);
 
 	WR_REG16((char *)epwm1_addr + EPWM_CMPAHR, 0x0000); // disable HR for now
 
