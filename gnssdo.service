@@ -1,0 +1,9 @@
+[Unit]
+Description=GNSS-disciplined oscillator
+Requires=ozonedto.service
+After=ozonedto.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/screen -D -m -S gnssdo /home/senior/devel/gnssdo/gnssdo
+
