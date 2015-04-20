@@ -5,5 +5,5 @@ After=ozonedto.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/screen -D -m -S gnssdo /home/senior/devel/gnssdo/gnssdo
+ExecStart=/usr/bin/screen -D -m -S gnssdo /home/ozone/mosaic/gnssdo/gnssdo
 
