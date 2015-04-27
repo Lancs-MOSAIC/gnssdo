@@ -15,7 +15,6 @@ static const size_t DMTIMER4_BASE_ADDRESS = 0x48044000;
 static const size_t DMTIMER5_BASE_ADDRESS = 0x48046000;
 static const size_t CM_PER_BASE_ADDRESS = 0x44E00000;
 static const size_t CM_DPLL_BASE_ADDRESS = 0x44E00500;
-static const size_t CTRLMOD_BASE_ADDRESS = 0x44E10000;
 static const size_t EPWM1_BASE_ADDRESS = 0x48302200;
 
 static const size_t DMTIMER_TCLR = 0x38;
@@ -41,7 +40,6 @@ static const size_t EPWM_AQCTLA = 0x16;
 //static const size_t EPWM_HRCNTL = 0x40;
 static const size_t EPWM_HRCNFG = 0xC0;
 static const size_t EPWM_CMPAHR = 0x10;
-static const size_t CTRLMOD_PWMSS_CTRL = 0x664;
 
 // block size
 static const size_t ECAP_MEM_SIZE = 0x0180;
@@ -50,7 +48,6 @@ static const size_t CM_PER_MEM_SIZE = 0x400;
 static const size_t CM_DPLL_MEM_SIZE = 0x100;
 static const size_t PIN_CONF_MEM_SIZE = 0x300;
 static const size_t EPWM_MEM_SIZE = 0x60;
-static const size_t CTRLMOD_MEM_SIZE = 0x800;
 
 static const uint32_t TIMER_CLOCK_FREQ = 10000000;
 // PWM MEP scale factor
@@ -140,18 +137,6 @@ int main(void)
 	reg_addr = (char *)cm_dpll_addr + CLKSEL_TIMER4_CLK;
 	printf("%%CLKSEL_TIMER4_CLK = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x0); // Use TCLKIN as clock
-
-	// --- what is going on here? ---
-
-	void *ctrlmod_addr = map_mem_region(CTRLMOD_BASE_ADDRESS, CTRLMOD_MEM_SIZE, fd);
-	if (ctrlmod_addr == NULL) {
-		perror("CTRLMOD_BASE_ADDRESS map failed");
-		return 1;
-	}
-
-	reg_addr = (char *)ctrlmod_addr + CTRLMOD_PWMSS_CTRL;
-	printf("%%CTRLMOD_PWMSS_CTRL = 0x%08X\n", RD_REG32(reg_addr));	
-	//*((uint32_t *)reg_addr) = 0x2; // enable PWM1 time base clock
 
 	// --- Configure DMTIMER4 to divide 10 MHz to 1 Hz ---
 
