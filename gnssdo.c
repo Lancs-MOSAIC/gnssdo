@@ -37,7 +37,6 @@ static const size_t EPWM_TBCTL = 0x00;
 static const size_t EPWM_TBPRD = 0xA;
 static const size_t EPWM_CMPA = 0x12;
 static const size_t EPWM_AQCTLA = 0x16;
-//static const size_t EPWM_HRCNTL = 0x40;
 static const size_t EPWM_HRCNFG = 0xC0;
 static const size_t EPWM_CMPAHR = 0x10;
 
@@ -357,7 +356,7 @@ int main(void)
 
 	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCLR, 0x0); // stop timer
 
-	int32_t phase_err, prev_phase_err;
+	int32_t phase_err, prev_phase_err = 0;
 	double phase_err_int = 0;
 	double I_factor = 1.5e-9;
 	double P_factor = 2e-6;
@@ -387,7 +386,8 @@ int main(void)
 	printf("%%Timer started\n");
 
 	int fast_lock = 1, phase_err_init = 0;
-	uint16_t pwm_ctrl, pwm_ctrl_hr = 0;
+	uint16_t pwm_ctrl_hr = 0;
+	uint16_t pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 
 	for (;;) {
 		// test for PPS events
@@ -436,7 +436,7 @@ int main(void)
 			}
 
 			time_t time_now = time(NULL);
-			printf("%d %d %.6g %u %u %d %d\n", time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr, gnss_pps_cap, tcxo_pps_cap);
+			printf("%d %d %.6g %u %u %d %d\n", (int)time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr, gnss_pps_cap, tcxo_pps_cap);
 			fflush(stdout);
 
 			reg_addr = (char *)epwm1_addr + EPWM_CMPA;
