@@ -228,6 +228,9 @@ int main(void)
 		return 1;
 	}
 
+        /* We don't need to do any more maps now, so close the file */
+        close(fd);
+
 	reg_addr = (char *)ecap2_addr + ECAP_ECCTL2;
 	printf("%%eCAP2 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
 	WR_REG16(reg_addr, 0x0030); // start counter, enable SYNCIN
