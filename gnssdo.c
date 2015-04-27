@@ -82,6 +82,25 @@ void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 
 }
 
+int unmap_mem_region(void **addr_ptr, size_t memSize)
+{
+  long pageSize = sysconf(_SC_PAGE_SIZE);
+
+  // round address down to page boundary
+
+  size_t pageAddr = (size_t)(*addr_ptr) / (size_t)pageSize;
+  pageAddr *= (size_t)pageSize;
+
+  // unmap
+
+  int ret = munmap((void *)pageAddr, memSize);
+  if (ret == 0)
+    *addr_ptr = NULL; /* invalidate the address */
+
+  return ret;
+}
+
+
 #define WR_REG32(reg_addr, val) *((uint32_t *)(reg_addr)) = (val)
 #define RD_REG32(reg_addr) *((uint32_t *)(reg_addr))
 #define WR_REG16(reg_addr, val) *((uint16_t *)(reg_addr)) = (val)
@@ -124,6 +143,8 @@ int main(void)
 	printf("%%CM_PER_EPWMSS2_CLKCTRL = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x00000002);
 
+	if (unmap_mem_region(&cm_per_addr, CM_PER_MEM_SIZE))
+	     perror("munmap");
 
 	// --- Configure TIMER4 to use TCLKIN ---
 
@@ -136,6 +157,9 @@ int main(void)
 	reg_addr = (char *)cm_dpll_addr + CLKSEL_TIMER4_CLK;
 	printf("%%CLKSEL_TIMER4_CLK = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x0); // Use TCLKIN as clock
+
+	if (unmap_mem_region(&cm_dpll_addr, CM_DPLL_MEM_SIZE))
+	  perror("munmap");
 
 	// --- Configure DMTIMER4 to divide 10 MHz to 1 Hz ---
 
@@ -384,6 +408,9 @@ int main(void)
 	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear interrupt flag
 
 	printf("%%Timer started\n");
+
+	if (unmap_mem_region(&dmtimer4_addr, DMTIMER_MEM_SIZE))
+	  perror("munmap");
 
 	int fast_lock = 1, phase_err_init = 0;
 	uint16_t pwm_ctrl_hr = 0;
