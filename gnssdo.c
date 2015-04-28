@@ -9,6 +9,9 @@
 #include <math.h>
 #include <pwd.h>
 #include <errno.h>
+#include <pthread.h>
+#include <string.h>
+#include "gpsdthread.h"
 
 // register address
 static const size_t ECAP0_BASE_ADDRESS = 0x48300100;
@@ -140,6 +143,8 @@ int drop_privs(void)
 int main(void)
 {
 	struct timespec ts;
+	pthread_t gpsdth;
+	struct gpsdthread_context gpsdctx = {PTHREAD_MUTEX_INITIALIZER, 0};
 
 	/* Open physical memory file and map the
 	   regions we need to access hardware
@@ -197,12 +202,20 @@ int main(void)
  
        close(fd);
 
-       /* try dropping priviledges */
+       /* try dropping privileges */
 
        if (drop_privs())
 	 fprintf(stderr, "Failed to drop privs.\n");
        else
 	 fprintf(stderr, "Successfully dropped privs.\n");
+
+       /* Start GPS status thread */
+
+       int r = pthread_create(&gpsdth, NULL, gpsdthread, (void *)&gpsdctx);
+       if (r != 0) {
+	 fprintf(stderr, "pthread_create: %s\n", strerror(r));
+	 return 1;
+       }
 
 	// --- Enable module clocks ---
 
@@ -317,6 +330,29 @@ int main(void)
 	WR_REG16(reg_addr, 0x00FF);
 	reg_addr = (char *)ecap2_addr + ECAP_ECCLR;
 	WR_REG16(reg_addr, 0x00FF);
+
+	// --- Wait for GNSS fix to be valid ---
+
+	ts.tv_sec = 1;
+	ts.tv_nsec = 0;
+
+	for (;;) {
+	  
+	  pthread_mutex_lock(&gpsdctx.mutex);
+
+	  int fix_status = gpsdctx.status;
+
+	  pthread_mutex_unlock(&gpsdctx.mutex);
+
+	  if (fix_status > 0)
+	    break;
+	  else
+	    fprintf(stderr, "Fix not yet valid\n");
+	  
+	  // wait a bit
+	  nanosleep(&ts, NULL);
+
+	}
 
 	// --- Calibrate VCXO tuning range ---
 
