@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <time.h>
 #include <math.h>
+#include <pwd.h>
+#include <errno.h>
 
 // register address
 static const size_t ECAP0_BASE_ADDRESS = 0x48300100;
@@ -54,6 +56,8 @@ static const uint32_t TIMER_CLOCK_FREQ = 10000000;
 // are clearly wrong.
 static const int32_t MEP_SF = 121; 
 
+#define UNPRIV_USER "nobody"
+
 void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 {
 
@@ -100,6 +104,33 @@ int unmap_mem_region(void **addr_ptr, size_t memSize)
   return ret;
 }
 
+int drop_privs(void)
+{
+  struct passwd *pws;
+
+  errno = 0;
+  pws = getpwnam(UNPRIV_USER);
+
+  if (pws == NULL) {
+    if (errno != 0)
+      perror("getpwnam");
+    else
+      fprintf(stderr, "User %s not in /etc/passwd\n", UNPRIV_USER);
+    return 1;
+  }
+
+  if (setgid(pws->pw_gid)) {
+    perror("setegid");
+    return 1;
+  }
+
+  if (setuid(pws->pw_uid)) {
+    perror("seteuid");
+    return 1;
+  }
+
+  return 0;
+}
 
 #define WR_REG32(reg_addr, val) *((uint32_t *)(reg_addr)) = (val)
 #define RD_REG32(reg_addr) *((uint32_t *)(reg_addr))
@@ -110,17 +141,68 @@ int main(void)
 {
 	struct timespec ts;
 
+	/* Open physical memory file and map the
+	   regions we need to access hardware
+	*/
+
 	int fd = open("/dev/mem", O_RDWR);
 	if (fd == -1) {
 		perror("/dev/mem");
 		return 1;
 	}
 
-	void *cm_per_addr = map_mem_region(CM_PER_BASE_ADDRESS, CM_PER_MEM_SIZE, fd);
+	void *cm_per_addr = map_mem_region(CM_PER_BASE_ADDRESS,
+					   CM_PER_MEM_SIZE, fd);
 	if (cm_per_addr == NULL) {
 		perror("CM_PER_BASE_ADDRESS map failed");
 		return 1;
 	}
+
+	void *cm_dpll_addr = map_mem_region(CM_DPLL_BASE_ADDRESS,
+					    CM_DPLL_MEM_SIZE, fd);
+	if (cm_dpll_addr == NULL) {
+		perror("CM_DPLL_BASE_ADDRESS map failed");
+		return 1;
+	}
+
+	void *dmtimer4_addr = map_mem_region(DMTIMER4_BASE_ADDRESS,
+					     DMTIMER_MEM_SIZE, fd);
+	if (dmtimer4_addr == NULL) {
+		perror("DMTIMER4_BASE_ADDRESS map failed");
+		return 1;
+	}
+
+	void *epwm1_addr = map_mem_region(EPWM1_BASE_ADDRESS,
+					  EPWM_MEM_SIZE, fd);
+	if (epwm1_addr == NULL) {
+		perror("EPWM1_BASE_ADDRESS map failed");
+		return 1;
+	}
+
+	void *ecap0_addr = map_mem_region(ECAP0_BASE_ADDRESS,
+					  ECAP_MEM_SIZE, fd);
+	if (ecap0_addr == NULL) {
+		perror("ECAP0_BASE_ADDRESS map failed");
+		return 1;
+	}
+
+	void *ecap2_addr = map_mem_region(ECAP2_BASE_ADDRESS,
+					  ECAP_MEM_SIZE, fd);
+	if (ecap2_addr == NULL) {
+		perror("ECAP2_BASE_ADDRESS map failed");
+		return 1;
+	}
+
+        /* We don't need to do any more maps now, so close the file */
+ 
+       close(fd);
+
+       /* try dropping priviledges */
+
+       if (drop_privs())
+	 fprintf(stderr, "Failed to drop privs.\n");
+       else
+	 fprintf(stderr, "Successfully dropped privs.\n");
 
 	// --- Enable module clocks ---
 
@@ -148,12 +230,6 @@ int main(void)
 
 	// --- Configure TIMER4 to use TCLKIN ---
 
-	void *cm_dpll_addr = map_mem_region(CM_DPLL_BASE_ADDRESS, CM_DPLL_MEM_SIZE, fd);
-	if (cm_dpll_addr == NULL) {
-		perror("CM_DPLL_BASE_ADDRESS map failed");
-		return 1;
-	}
-
 	reg_addr = (char *)cm_dpll_addr + CLKSEL_TIMER4_CLK;
 	printf("%%CLKSEL_TIMER4_CLK = 0x%08X\n", RD_REG32(reg_addr));	
 	WR_REG32(reg_addr, 0x0); // Use TCLKIN as clock
@@ -162,12 +238,6 @@ int main(void)
 	  perror("munmap");
 
 	// --- Configure DMTIMER4 to divide 10 MHz to 1 Hz ---
-
-	void *dmtimer4_addr = map_mem_region(DMTIMER4_BASE_ADDRESS, DMTIMER_MEM_SIZE, fd);
-	if (dmtimer4_addr == NULL) {
-		perror("DMTIMER4_BASE_ADDRESS map failed");
-		return 1;
-	}
 
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TCLR;
 	WR_REG32(reg_addr, 0x0); // stop timer
@@ -189,12 +259,6 @@ int main(void)
 	printf("%%register = 0x%08X\n", RD_REG32(reg_addr));	
 
 	// --- Configure PWM1 to drive TCXO control voltage ---
-
-	void *epwm1_addr = map_mem_region(EPWM1_BASE_ADDRESS, EPWM_MEM_SIZE, fd);
-	if (epwm1_addr == NULL) {
-		perror("EPWM1_BASE_ADDRESS map failed");
-		return 1;
-	}
 
 	reg_addr = (char *)epwm1_addr + EPWM_TBPRD;
 	printf("%%ePWM1 TBPRD = 0x%04X\n", RD_REG16(reg_addr));	
@@ -223,21 +287,6 @@ int main(void)
 	WR_REG16(reg_addr, 0x0000); // count up
 
 	// --- Configure eCAP0,2 to capture GNSS,TCXO PPS events ---
-
-	void *ecap0_addr = map_mem_region(ECAP0_BASE_ADDRESS, ECAP_MEM_SIZE, fd);
-	if (ecap0_addr == NULL) {
-		perror("ECAP0_BASE_ADDRESS map failed");
-		return 1;
-	}
-
-	void *ecap2_addr = map_mem_region(ECAP2_BASE_ADDRESS, ECAP_MEM_SIZE, fd);
-	if (ecap2_addr == NULL) {
-		perror("ECAP2_BASE_ADDRESS map failed");
-		return 1;
-	}
-
-        /* We don't need to do any more maps now, so close the file */
-        close(fd);
 
 	reg_addr = (char *)ecap2_addr + ECAP_ECCTL2;
 	printf("%%eCAP2 ECCTL2 = 0x%04X\n", RD_REG16(reg_addr));	
