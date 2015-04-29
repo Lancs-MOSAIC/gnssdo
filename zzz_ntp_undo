@@ -1,0 +1,11 @@
+# Undo the effects of the 'ntp' script, i.e. remove the
+# DHCP-based NTP config file
+
+# NTP_DHCP_CONF might already be lying around from the 'ntp' script
+if [ -z $NTP_DHCP_CONF ]; then
+	NTP_DHCP_CONF=/var/lib/ntp/ntp.conf.dhcp
+fi
+
+rm -f $NTP_DHCP_CONF
+
+invoke-rc.d ntp try-restart
