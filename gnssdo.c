@@ -145,6 +145,7 @@ int main(void)
 	struct timespec ts;
 	pthread_t gpsdth;
 	struct gpsdthread_context gpsdctx = {PTHREAD_MUTEX_INITIALIZER, 0};
+	int fix_status = 0;
 
 	/* Open physical memory file and map the
 	   regions we need to access hardware
@@ -340,7 +341,7 @@ int main(void)
 	  
 	  pthread_mutex_lock(&gpsdctx.mutex);
 
-	  int fix_status = gpsdctx.status;
+	  fix_status = gpsdctx.status;
 
 	  pthread_mutex_unlock(&gpsdctx.mutex);
 
@@ -547,19 +548,30 @@ int main(void)
 				pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
 			}
 
-			time_t time_now = time(NULL);
-			printf("%d %d %.6g %u %u %d %d\n", (int)time_now, phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr, gnss_pps_cap, tcxo_pps_cap);
-			fflush(stdout);
+			/* Check for valid fix */
 
-			reg_addr = (char *)epwm1_addr + EPWM_CMPA;
-			WR_REG16(reg_addr, pwm_ctrl); // duty cycle
-			WR_REG16((char *)epwm1_addr + EPWM_CMPAHR, pwm_ctrl_hr);
+			pthread_mutex_lock(&gpsdctx.mutex);
+			fix_status = gpsdctx.status;
+			pthread_mutex_unlock(&gpsdctx.mutex);			
+
+			time_t time_now = time(NULL);
+			printf("%d %d %.6g %u %u %d %d %d\n", (int)time_now,
+			       phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr,
+			       gnss_pps_cap, tcxo_pps_cap, fix_status);
+			fflush(stdout);
+			
+			if (fix_status > 0) {
+
+			  reg_addr = (char *)epwm1_addr + EPWM_CMPA;
+			  WR_REG16(reg_addr, pwm_ctrl); // duty cycle
+			  WR_REG16((char *)epwm1_addr + EPWM_CMPAHR,
+				   pwm_ctrl_hr);
+
+			}
 	
 
 		}
 				
-
-
 		// wait a bit
 		ts.tv_sec = 0;
 		ts.tv_nsec = 100000000;
