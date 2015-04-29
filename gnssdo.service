@@ -1,7 +1,7 @@
 [Unit]
 Description=GNSS-disciplined oscillator
-Requires=ozonedto.service
-After=ozonedto.service
+Requires=ozonedto.service gpsd.service
+After=ozonedto.service gpsd.service
 
 [Service]
 Type=simple
