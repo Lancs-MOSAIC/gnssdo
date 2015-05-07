@@ -54,6 +54,7 @@ static const size_t PIN_CONF_MEM_SIZE = 0x300;
 static const size_t EPWM_MEM_SIZE = 0x60;
 
 static const uint32_t TIMER_CLOCK_FREQ = 10000000;
+static const int32_t ECAP_CLOCK_FREQ = 100000000;
 // PWM MEP scale factor
 // This is empirically determined, since TI docs (SPRUH73K)
 // are clearly wrong.
@@ -473,6 +474,7 @@ int main(void)
 
 	// wait for GNSS PPS and start timer
 
+	
 	printf("%%Waiting for GNSS PPS...\n");
 	ts.tv_sec = 0;
 	ts.tv_nsec = 10000000;
@@ -485,11 +487,11 @@ int main(void)
 
 	// correct start time of counter
 	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCRR, timer_load_count + cnt_elapsed / 10);	
-
+        
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TCLR;
-	WR_REG32(reg_addr, 0x0403); // enable auto-reload timer
+        WR_REG32(reg_addr, 0x0403); // enable auto-reload timer
 
-	printf("%%Elapsed since GNSS PPS = %d\n", cnt_elapsed);
+        printf("%%Elapsed since GNSS PPS = %d\n", cnt_elapsed);
 
 	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear interrupt flag
 
@@ -502,22 +504,43 @@ int main(void)
 	uint16_t pwm_ctrl_hr = 0;
 	uint16_t pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 
+	int tcxo_pps_detected = 0;
+
 	for (;;) {
 		// test for PPS events
 		uint16_t ecap0_ecflg = RD_REG16((char *)ecap0_addr + ECAP_ECFLG);
 		uint16_t ecap2_ecflg = RD_REG16((char *)ecap2_addr + ECAP_ECFLG);
 
-		if ((ecap0_ecflg & 0x0002) && (ecap2_ecflg & 0x0002)) {
-			// CAP1 event detected: read count and reset flag
-			reg_addr = (char *)ecap0_addr + ECAP_CAP1;
-			gnss_pps_cap = (int32_t)RD_REG32(reg_addr);
-			reg_addr = (char *)ecap0_addr + ECAP_ECCLR;
-			WR_REG16(reg_addr, 0x0002);
+		if (ecap2_ecflg & 0x0002) {
 
-			tcxo_pps_cap = (int32_t)RD_REG32((char *)ecap2_addr + ECAP_CAP1);
-			WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+		  // TCXO PPS event
+		  // Store timestamp and reset eCAP
+		  tcxo_pps_cap = (int32_t)RD_REG32((char *)ecap2_addr
+						   + ECAP_CAP1);
+		  WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
+		  tcxo_pps_detected = 1;
+		}
 
-			phase_err = tcxo_pps_cap - gnss_pps_cap;
+		if (ecap0_ecflg & 0x0002) {
+
+	          // GNSS PPS event
+		  gnss_pps_cap = (int32_t)RD_REG32((char *)ecap0_addr
+						   + ECAP_CAP1);
+		  WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+
+		  if (tcxo_pps_detected)
+		    
+		    phase_err = tcxo_pps_cap - gnss_pps_cap;
+
+		  else
+		    phase_err = 0;
+
+		  if (phase_err < -(ECAP_CLOCK_FREQ / 2))
+		    phase_err += ECAP_CLOCK_FREQ;
+
+		  if (phase_err > (ECAP_CLOCK_FREQ / 2))
+		    phase_err -= ECAP_CLOCK_FREQ;
+
 
 			if (fast_lock) {
 				if (phase_err_init != 0) {
