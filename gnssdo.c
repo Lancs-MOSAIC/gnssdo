@@ -146,7 +146,7 @@ int main(void)
 	struct timespec ts;
 	pthread_t gpsdth;
 	struct gpsdthread_context gpsdctx = {PTHREAD_MUTEX_INITIALIZER, 0};
-	int fix_status = 0;
+	int fix_status = 0, r;
 
 	/* Open physical memory file and map the
 	   regions we need to access hardware
@@ -204,6 +204,24 @@ int main(void)
  
        close(fd);
 
+       /* Try to set realtime scheduling */
+
+       int old_sched_policy = sched_getscheduler(0);
+       if (old_sched_policy == -1) {
+	 perror("sched_getscheduler");
+	 return 1;
+       }
+       struct sched_param old_sched_param, sp;
+       if (sched_getparam(0, &old_sched_param)) {
+	   perror("sched_getparam");
+	   return 1;
+       }
+
+       sp.sched_priority = 10;
+       r = sched_setscheduler(0, SCHED_FIFO, &sp);
+       if (r != 0)
+	 perror("sched_setscheduler");
+
        /* try dropping privileges */
 
        if (drop_privs())
@@ -213,7 +231,18 @@ int main(void)
 
        /* Start GPS status thread */
 
-       int r = pthread_create(&gpsdth, NULL, gpsdthread, (void *)&gpsdctx);
+       pthread_attr_t gpsdth_attr;
+       r = pthread_attr_init(&gpsdth_attr);
+       if (r != 0) {
+	 fprintf(stderr, "pthread_attr_init: %s",strerror(r));
+	 return 1;
+       }
+       
+       pthread_attr_setschedpolicy(&gpsdth_attr, old_sched_policy);
+       pthread_attr_setschedparam(&gpsdth_attr, &old_sched_param);
+       pthread_attr_setinheritsched(&gpsdth_attr, PTHREAD_EXPLICIT_SCHED);
+
+       r = pthread_create(&gpsdth, &gpsdth_attr, gpsdthread, (void *)&gpsdctx);
        if (r != 0) {
 	 fprintf(stderr, "pthread_create: %s\n", strerror(r));
 	 return 1;
@@ -510,6 +539,11 @@ int main(void)
 
 	if (unmap_mem_region(&dmtimer4_addr, DMTIMER_MEM_SIZE))
 	  perror("munmap");
+
+	// drop realtime scheduling
+
+	if (sched_setscheduler(0, old_sched_policy, &old_sched_param))
+	  perror("sched_setscheduler(old policy)");
 
 	// --- Main control loop ---
 
