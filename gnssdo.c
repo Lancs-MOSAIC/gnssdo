@@ -360,7 +360,8 @@ int main(void)
 
 	printf("%%Calibrating VCXO tuning range...\n");
 
-	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0xFFFF); // max. control voltage
+	// 75% max. control voltage
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0xC000);
 	sleep(1); // wait for RC delay	
 
 	// reset capture flags
@@ -408,7 +409,8 @@ int main(void)
 
 	printf("%%TCXO max freq = %.7f\n", tcxo_max_freq);
 
-	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x0000); // min. control voltage
+	// 25% max. control voltage
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x4000);
 	sleep(1); // wait for RC delay	
 
 	// reset capture flags
@@ -457,7 +459,10 @@ int main(void)
 
 	printf("%%TCXO min freq = %.7f\n", tcxo_min_freq);
 
-	double est_duty_cycle = (1 - tcxo_min_freq) / (tcxo_max_freq - tcxo_min_freq);
+	double est_duty_cycle = (0.5 - 0.75 * tcxo_min_freq
+				 + 0.25 * tcxo_max_freq)
+	  / (tcxo_max_freq - tcxo_min_freq);
+
 	if ((est_duty_cycle < 0) || (est_duty_cycle > 1)) {
 		printf("%%Duty cycle for correct tuning is out of range!\n");
 		est_duty_cycle = 0.5;
