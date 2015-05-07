@@ -469,7 +469,7 @@ int main(void)
 
 	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCLR, 0x0); // stop timer
 
-	int32_t phase_err, prev_phase_err = 0;
+	int32_t phase_err = 0;
 	double phase_err_int = 0;
 	double I_factor = 1.5e-9;
 	double P_factor = 2e-6;
@@ -508,7 +508,6 @@ int main(void)
 
 	// --- Main control loop ---
 
-	int fast_lock = 0, phase_err_init = 0;
 	uint16_t pwm_ctrl_hr = 0;
 	uint16_t pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 
@@ -556,34 +555,24 @@ int main(void)
 		    phase_err -= ECAP_CLOCK_FREQ;
 
 
-			if (fast_lock) {
-				if (phase_err_init != 0) {
-					// test if phase error has gone through zero
-					if (((double)phase_err * (double)prev_phase_err) < 0) {
-						printf("%%Switching to PLL\n");
-						fast_lock = 0;
-						pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
-						phase_err_int = 2 * (est_duty_cycle - 0.5) / I_factor;
-					} else
-						pwm_ctrl = (phase_err > 0) ? 65535 : 0;
-				}
-				prev_phase_err = phase_err;
-				phase_err_init = 1;
-				
-			} else {
-				phase_err_int += (double)phase_err;
+		  
+		  phase_err_int += (double)phase_err;
 
-				double pwm_duty_cycle = 0.5 +
-					0.5 * ((double)phase_err * P_factor + phase_err_int * I_factor);
-				if (pwm_duty_cycle > 1)
-					pwm_duty_cycle = 1;
-				if (pwm_duty_cycle < 0)
-					pwm_duty_cycle = 0;
+		  double pwm_duty_cycle = 0.5 +
+		    0.5 * ((double)phase_err * P_factor
+			   + phase_err_int * I_factor);
+
+		  if (pwm_duty_cycle > 1)
+		    pwm_duty_cycle = 1;
+		  if (pwm_duty_cycle < 0)
+		    pwm_duty_cycle = 0;
 	
-				pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
-				pwm_ctrl_hr = (uint16_t)((int32_t)(fmod(pwm_duty_cycle * 65536.0, 1.0) * MEP_SF) << 8);
-				pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
-			}
+		  pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
+		  pwm_ctrl_hr = (uint16_t)((int32_t)
+					   (fmod(pwm_duty_cycle * 65536.0, 1.0)
+					    * MEP_SF) << 8);
+		  pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
+			
 
 			/* Check for valid fix */
 
