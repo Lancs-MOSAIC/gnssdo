@@ -463,7 +463,9 @@ int main(void)
 		est_duty_cycle = 0.5;
 	}
 
-	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x8000); // centre control voltage
+	// set estimated control voltage for correct tuning
+	WR_REG16((char *)epwm1_addr + EPWM_CMPA,
+		 (uint16_t)(65536 * est_duty_cycle));
 
 	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCLR, 0x0); // stop timer
 
@@ -478,33 +480,45 @@ int main(void)
 	printf("%%Waiting for GNSS PPS...\n");
 	ts.tv_sec = 0;
 	ts.tv_nsec = 10000000;
+	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear flag
 	while (!(RD_REG16((char *)ecap0_addr + ECAP_ECFLG) & 0x0002))
 		nanosleep(&ts, NULL);
 
 	gnss_pps_cap = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_CAP1);
 	int32_t gnss_pps_cnt = (int32_t)RD_REG32((char *)ecap0_addr + ECAP_TSCTR);
 	int32_t cnt_elapsed = gnss_pps_cnt - gnss_pps_cap;
+	cnt_elapsed = cnt_elapsed / (ECAP_CLOCK_FREQ / TIMER_CLOCK_FREQ);
 
 	// correct start time of counter
-	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCRR, timer_load_count + cnt_elapsed / 10);	
+	WR_REG32((char *)dmtimer4_addr + DMTIMER_TCRR, timer_load_count
+		 + cnt_elapsed);	
         
 	reg_addr = (char *)dmtimer4_addr + DMTIMER_TCLR;
         WR_REG32(reg_addr, 0x0403); // enable auto-reload timer
 
-        printf("%%Elapsed since GNSS PPS = %d\n", cnt_elapsed);
+        printf("%%Elapsed since GNSS PPS = %d (DMTIMER clocks)\n", cnt_elapsed);
 
-	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002); // clear interrupt flag
+	if (cnt_elapsed > (TIMER_CLOCK_FREQ - 1))
+	  printf("%% WARNING: elapsed count too large!\n");
 
 	printf("%%Timer started\n");
 
 	if (unmap_mem_region(&dmtimer4_addr, DMTIMER_MEM_SIZE))
 	  perror("munmap");
 
-	int fast_lock = 1, phase_err_init = 0;
+	// --- Main control loop ---
+
+	int fast_lock = 0, phase_err_init = 0;
 	uint16_t pwm_ctrl_hr = 0;
 	uint16_t pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 
 	int tcxo_pps_detected = 0;
+
+	phase_err_int = 2 * (est_duty_cycle - 0.5) / I_factor;
+
+	// clear capture flags
+	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
+	WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
 
 	for (;;) {
 		// test for PPS events
