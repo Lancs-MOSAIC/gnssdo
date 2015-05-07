@@ -581,51 +581,41 @@ int main(void)
 	    WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
 
 	    if (tcxo_pps_detected)
-		    
 	      phase_err = tcxo_pps_cap - gnss_pps_cap;
-
 	    else
 	      phase_err = 0;
 
 	    if (phase_err < -(ECAP_CLOCK_FREQ / 2))
 	      phase_err += ECAP_CLOCK_FREQ;
-
+	    
 	    if (phase_err > (ECAP_CLOCK_FREQ / 2))
 	      phase_err -= ECAP_CLOCK_FREQ;
-
-
-		  
-	    phase_err_int += (double)phase_err;
-
-	    double pwm_duty_cycle = 0.5 +
-	      0.5 * ((double)phase_err * P_factor
-		     + phase_err_int * I_factor);
-
-	    if (pwm_duty_cycle > 1)
-	      pwm_duty_cycle = 1;
-	    if (pwm_duty_cycle < 0)
-	      pwm_duty_cycle = 0;
-	
-	    pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
-	    pwm_ctrl_hr = (uint16_t)((int32_t)
-				     (fmod(pwm_duty_cycle * 65536.0, 1.0)
-				      * MEP_SF) << 8);
-	    pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
-			
 
 	    /* Check for valid fix */
 
 	    pthread_mutex_lock(&gpsdctx.mutex);
 	    fix_status = gpsdctx.status;
-	    pthread_mutex_unlock(&gpsdctx.mutex);			
+	    pthread_mutex_unlock(&gpsdctx.mutex);
 
-	    time_t time_now = time(NULL);
-	    printf("%d %d %.6g %u %u %d %d %d\n", (int)time_now,
-		   phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr,
-		   gnss_pps_cap, tcxo_pps_cap, fix_status);
-	    fflush(stdout);
-			
 	    if (fix_status > 0) {
+ 
+	      phase_err_int += (double)phase_err;
+
+	      double pwm_duty_cycle = 0.5 +
+		0.5 * ((double)phase_err * P_factor
+		       + phase_err_int * I_factor);
+
+	      if (pwm_duty_cycle > 1)
+		pwm_duty_cycle = 1;
+	      if (pwm_duty_cycle < 0)
+		pwm_duty_cycle = 0;
+	
+	      pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
+	      pwm_ctrl_hr = (uint16_t)((int32_t)
+				       (fmod(pwm_duty_cycle * 65536.0, 1.0)
+					* MEP_SF) << 8);
+	      pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
+				
 
 	      reg_addr = (char *)epwm1_addr + EPWM_CMPA;
 	      WR_REG16(reg_addr, pwm_ctrl); // duty cycle
@@ -633,7 +623,12 @@ int main(void)
 		       pwm_ctrl_hr);
 
 	    }
-	
+
+	    time_t time_now = time(NULL);
+	    printf("%d %d %.6g %u %u %d %d %d\n", (int)time_now,
+		   phase_err, phase_err_int, pwm_ctrl, pwm_ctrl_hr,
+		   gnss_pps_cap, tcxo_pps_cap, fix_status);
+	    fflush(stdout);
 
 	  }
 				
