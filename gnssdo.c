@@ -389,6 +389,9 @@ int main(void)
 
 	printf("%%Calibrating VCXO tuning range...\n");
 
+	ts.tv_sec = 0;
+	ts.tv_nsec = 10000000; // 10 ms
+
 	// 75% max. control voltage
 	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0xC000);
 	sleep(1); // wait for RC delay	
@@ -431,6 +434,7 @@ int main(void)
 			tcxo_count++;
 		}		
 
+		nanosleep(&ts, NULL);
 
 	}
 
@@ -481,6 +485,7 @@ int main(void)
 			tcxo_count++;
 		}		
 
+		nanosleep(&ts, NULL);
 
 	}
 
