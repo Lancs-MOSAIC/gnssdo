@@ -370,6 +370,8 @@ int main(void)
 	reg_addr = (char *)ecap2_addr + ECAP_ECCLR;
 	WR_REG16(reg_addr, 0x00FF);
 
+	for (;;) {
+
 	// --- Wait for GNSS fix to be valid ---
 
 	ts.tv_sec = 1;
@@ -448,7 +450,7 @@ int main(void)
 
 	double tcxo_max_freq = (double)gnss_period / (double)tcxo_period;
 
-	printf("%%TCXO max freq = %.7f\n", tcxo_max_freq);
+	printf("%%TCXO max freq = %.2f ppm\n", (tcxo_max_freq - 1) * 1E6);
 
 	// 25% max. control voltage
 	WR_REG16((char *)epwm1_addr + EPWM_CMPA, 0x4000);
@@ -499,18 +501,35 @@ int main(void)
 
 	double tcxo_min_freq = (double)gnss_period / (double)tcxo_period;
 
-	printf("%%TCXO min freq = %.7f\n", tcxo_min_freq);
+	printf("%%TCXO min freq = %.2f ppm\n", (tcxo_min_freq - 1) * 1E6);
 
-	double est_duty_cycle = (0.5 - 0.75 * tcxo_min_freq
-				 + 0.25 * tcxo_max_freq)
-	  / (tcxo_max_freq - tcxo_min_freq);
+	// Measured frequencies may be wrong due to the
+	// GNSS PPS misbheaving, particularly if the receiver
+	// has not been running for long. Do some safety checks here.
+
+	double est_duty_cycle;
+
+	if (tcxo_max_freq > tcxo_min_freq) {
+	  double tcxo_mid_freq = 0.5 * (tcxo_max_freq + tcxo_min_freq);
+	  if (fabs(tcxo_mid_freq - 1) < 1E-6) {
+	    est_duty_cycle = (0.5 - 0.75 * tcxo_min_freq
+			      + 0.25 * tcxo_max_freq)
+	      / (tcxo_max_freq - tcxo_min_freq);
+	  } else {
+	    printf("%% TCXO midpoint freq. > 1 ppm off. Ignoring.\n");
+	    est_duty_cycle = 0.5;
+	  }
+	} else {
+	  printf("%% Measured frequencies not reliable. Ignoring.\n");
+	  est_duty_cycle = 0.5;
+	}
 
 	if ((est_duty_cycle < 0) || (est_duty_cycle > 1)) {
 		printf("%%Duty cycle for correct tuning is out of range!\n");
 		est_duty_cycle = 0.5;
 	}
 
-	for (;;) {
+
 
 	  // --- Start 10 MHz divider in sync with GNSS PPS ---
 
