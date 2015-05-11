@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdlib.h>
 #include "gpsdthread.h"
 
 // register address
@@ -61,6 +62,13 @@ static const int32_t ECAP_CLOCK_FREQ = 100000000;
 static const int32_t MEP_SF = 121; 
 
 #define UNPRIV_USER "nobody"
+
+// PID loop constants
+static const double I_factor = 1.5e-9;
+static const double P_factor = 2e-6;
+
+#define MAX_ALLOWED_PHASE_ERR 100000 // 1 ms
+#define INIT_PHASE_ERR_COUNTDOWN 3
 
 void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 {
@@ -502,6 +510,10 @@ int main(void)
 		est_duty_cycle = 0.5;
 	}
 
+	for (;;) {
+
+	  // --- Start 10 MHz divider in sync with GNSS PPS ---
+
 	// set estimated control voltage for correct tuning
 	WR_REG16((char *)epwm1_addr + EPWM_CMPA,
 		 (uint16_t)(65536 * est_duty_cycle));
@@ -510,11 +522,8 @@ int main(void)
 
 	int32_t phase_err = 0;
 	double phase_err_int = 0;
-	double I_factor = 1.5e-9;
-	double P_factor = 2e-6;
 
 	// wait for GNSS PPS and start timer
-
 	
 	printf("%%Waiting for GNSS PPS...\n");
 	ts.tv_sec = 0;
@@ -542,20 +551,13 @@ int main(void)
 
 	printf("%%Timer started\n");
 
-	if (unmap_mem_region(&dmtimer4_addr, DMTIMER_MEM_SIZE))
-	  perror("munmap");
-
-	// drop realtime scheduling
-
-	if (sched_setscheduler(0, old_sched_policy, &old_sched_param))
-	  perror("sched_setscheduler(old policy)");
-
 	// --- Main control loop ---
 
 	uint16_t pwm_ctrl_hr = 0;
 	uint16_t pwm_ctrl = (uint16_t)(65536 * est_duty_cycle);
 
 	int tcxo_pps_detected = 0;
+	int phase_err_countdown = INIT_PHASE_ERR_COUNTDOWN;
 
 	phase_err_int = 2 * (est_duty_cycle - 0.5) / I_factor;
 
@@ -603,30 +605,47 @@ int main(void)
 	    pthread_mutex_unlock(&gpsdctx.mutex);
 
 	    if (fix_status > 0) {
- 
-	      phase_err_int += (double)phase_err;
 
-	      double pwm_duty_cycle = 0.5 +
-		0.5 * ((double)phase_err * P_factor
-		       + phase_err_int * I_factor);
+	      // check for excessive phase error
 
-	      if (pwm_duty_cycle > 1)
-		pwm_duty_cycle = 1;
-	      if (pwm_duty_cycle < 0)
-		pwm_duty_cycle = 0;
+	      if (abs(phase_err) > MAX_ALLOWED_PHASE_ERR) {
+
+		printf("%% Phase error exceeds limit. Countdown = %d\n",
+		       phase_err_countdown);
+		if (phase_err_countdown <= 0) {
+		  printf("%% Exiting PLL\n");
+		  break; // re-initialise
+		}
+		phase_err_countdown--;
+
+	      } else {
+
+		phase_err_countdown = INIT_PHASE_ERR_COUNTDOWN;
+
+		phase_err_int += (double)phase_err;
+
+		double pwm_duty_cycle = 0.5 +
+		  0.5 * ((double)phase_err * P_factor
+			 + phase_err_int * I_factor);
+
+		if (pwm_duty_cycle > 1)
+		  pwm_duty_cycle = 1;
+		if (pwm_duty_cycle < 0)
+		  pwm_duty_cycle = 0;
 	
-	      pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
-	      pwm_ctrl_hr = (uint16_t)((int32_t)
-				       (fmod(pwm_duty_cycle * 65536.0, 1.0)
-					* MEP_SF) << 8);
-	      pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
+		pwm_ctrl = (uint16_t)floor(pwm_duty_cycle * 65536.0);
+		pwm_ctrl_hr = (uint16_t)((int32_t)
+					 (fmod(pwm_duty_cycle * 65536.0, 1.0)
+					  * MEP_SF) << 8);
+		pwm_ctrl_hr = (pwm_ctrl_hr + 0x180) & 0xFF00;
 				
 
-	      reg_addr = (char *)epwm1_addr + EPWM_CMPA;
-	      WR_REG16(reg_addr, pwm_ctrl); // duty cycle
-	      WR_REG16((char *)epwm1_addr + EPWM_CMPAHR,
-		       pwm_ctrl_hr);
+		reg_addr = (char *)epwm1_addr + EPWM_CMPA;
+		WR_REG16(reg_addr, pwm_ctrl); // duty cycle
+		WR_REG16((char *)epwm1_addr + EPWM_CMPAHR,
+			 pwm_ctrl_hr);
 
+	      }
 	    }
 
 	    time_t time_now = time(NULL);
@@ -641,6 +660,8 @@ int main(void)
 	  ts.tv_sec = 0;
 	  ts.tv_nsec = 100000000;
 	  nanosleep(&ts, NULL);
+	}
+
 	}
 
 	printf("Goodbye\n");
