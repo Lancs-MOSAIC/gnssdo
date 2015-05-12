@@ -5,7 +5,8 @@ After=ozonedto.service gpsd.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/screen -D -m -S gnssdo /home/ozone/mosaic/gnssdo/gnssdo
+ExecStart=/home/ozone/mosaic/gnssdo/gnssdo
+WorkingDirectory=/home/ozone/mosaic/gnssdo
 User=ozone
 Restart=always
 RestartSec=10

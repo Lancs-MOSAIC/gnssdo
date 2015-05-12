@@ -1,0 +1,9 @@
+/var/log/gnssdo.log {
+	copytruncate
+	daily
+	nomail
+	missingok
+	nocompress
+	rotate 7
+}
+

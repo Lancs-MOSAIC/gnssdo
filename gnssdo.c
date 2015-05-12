@@ -70,6 +70,8 @@ static const double P_factor = 2e-6;
 #define MAX_ALLOWED_PHASE_ERR 100000 // 1 ms
 #define INIT_PHASE_ERR_COUNTDOWN 3
 
+#define LOGFILE "/var/log/gnssdo.log"
+
 void *map_mem_region(size_t baseAddr, size_t memSize, int mem_fd)
 {
 
@@ -155,6 +157,13 @@ int main(void)
 	pthread_t gpsdth;
 	struct gpsdthread_context gpsdctx = {PTHREAD_MUTEX_INITIALIZER, 0};
 	int fix_status = 0, r;
+
+	if (!isatty(STDOUT_FILENO)) {
+	  if (freopen(LOGFILE, "a", stdout) != NULL)
+            fprintf(stderr, "Logging to %s\n", LOGFILE);
+          else
+            fprintf(stderr, "Logging to stdout\n");
+        }
 
 	/* Open physical memory file and map the
 	   regions we need to access hardware
@@ -388,7 +397,7 @@ int main(void)
 	  if (fix_status > 0)
 	    break;
 	  else
-	    fprintf(stderr, "Fix not yet valid\n");
+	    printf("%% Fix not yet valid\n");
 	  
 	  // wait a bit
 	  nanosleep(&ts, NULL);
