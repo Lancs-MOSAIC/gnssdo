@@ -419,7 +419,8 @@ int main(void)
 	WR_REG16((char *)ecap0_addr + ECAP_ECCLR, 0x0002);
 	WR_REG16((char *)ecap2_addr + ECAP_ECCLR, 0x0002);
 
-	int32_t gnss_pps_cap, tcxo_pps_cap, prev_gnss_pps_cap, prev_tcxo_pps_cap;
+	int32_t gnss_pps_cap, prev_gnss_pps_cap;
+	int32_t tcxo_pps_cap = 0, prev_tcxo_pps_cap = 0;
 	int gnss_count = 0, tcxo_count = 0;
 	double gnss_period = 0, tcxo_period = 0;
 	const int cal_pps_count = 5;
